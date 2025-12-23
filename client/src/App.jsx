@@ -1,9 +1,11 @@
-// App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import logoImage from './assets/logo.png';
 import './App.css';
 import ComparativeAnalysis from './ComparativeAnalysis.jsx';
 import CameraCapture from './CameraCapture.jsx';
+
+// Dynamic API Base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 // --- Data for the Questionnaire ---
 const questions = [
@@ -178,9 +180,8 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
         setIsLoggedIn(true);
         setIsFirstLogin(data.isFirstLogin);
 
-        // For patients, we fetch their history on login
         if (userWithPID.userType === 'Patient') {
-            const historyRes = await fetch(`http://localhost:5001/api/history/${data.user._id}`, {
+            const historyRes = await fetch(`${API_BASE_URL}/api/history/${data.user._id}`, {
                 headers: { 'Authorization': `Bearer ${data.token}` }
             });
             const historyData = await historyRes.json();
@@ -202,7 +203,7 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
                 return;
             }
             try {
-                const res = await fetch('http://localhost:5001/api/register', {
+                const res = await fetch(`${API_BASE_URL}/api/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, phone, password, userType, name, dob })
@@ -226,7 +227,7 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
             }
         } else if (isForgotPassword) {
             try {
-                const res = await fetch('http://localhost:5001/api/forgot-password', {
+                const res = await fetch(`${API_BASE_URL}/api/forgot-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
@@ -249,7 +250,7 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
             }
         } else { // Login
             try {
-                const res = await fetch('http://localhost:5001/api/login', {
+                const res = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
@@ -270,7 +271,7 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
         setError('');
         setMessage('');
         try {
-            const res = await fetch('http://localhost:5001/api/verify-registration', {
+            const res = await fetch(`${API_BASE_URL}/api/verify-registration`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...tempData, otp })
@@ -289,7 +290,7 @@ const AuthPage = ({ setPage, setIsLoggedIn, setCurrentUser, setIsFirstLogin, rol
         setError('');
         setMessage('');
         try {
-            const res = await fetch('http://localhost:5001/api/resend-otp', {
+            const res = await fetch(`${API_BASE_URL}/api/resend-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: tempData.email })
@@ -434,7 +435,7 @@ const ResetPasswordPage = ({ setPage }) => {
         }
 
         try {
-            const res = await fetch('http://localhost:5001/api/reset-password', {
+            const res = await fetch(`${API_BASE_URL}/api/reset-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token, newPassword })
@@ -723,7 +724,6 @@ const DetailedResults = ({ analysisResult }) => {
         const features = analysisResult.imageAnalysis.features;
         if (!features) return [];
 
-        // Define feature order and display names
         const featureOrder = [
             { key: 'g_loop', name: 'G-Loop' },
             { key: 'y_loop', name: 'Y-Loop' },
@@ -736,7 +736,6 @@ const DetailedResults = ({ analysisResult }) => {
             { key: 'spacing', name: 'Word Spacing' }
         ];
 
-        // Return features in the specified order, only if they exist
         return featureOrder
             .filter(item => features[item.key] !== undefined)
             .map(item => ({
@@ -746,14 +745,12 @@ const DetailedResults = ({ analysisResult }) => {
             }));
     }, [analysisResult.imageAnalysis.features]);
 
-    // Define traits to highlight based on outcome (Relapse Risk vs. Recovery)
     const highImpactTraits = {
         'Relapse Risk': ['pressure', 'spacing', 'y_loop'],
         'Recovery': ['t_bar', 't_height', 'd_loop']
     };
 
     const outcome = analysisResult.imageAnalysis.outcome;
-    const traitsToHighlight = highImpactTraits[outcome] || [];
 
     return (
         <div className="results-container">
@@ -853,7 +850,7 @@ const EditProfileModal = ({ currentUser, onClose, onSave }) => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('userToken');
-            const res = await fetch('http://localhost:5001/api/update-profile', {
+            const res = await fetch(`${API_BASE_URL}/api/update-profile`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -926,7 +923,7 @@ const RegisterPatientForm = ({ onRegister }) => {
         setMessage('');
 
         try {
-            const res = await fetch('http://localhost:5001/api/counselor/register-patient', {
+            const res = await fetch(`${API_BASE_URL}/api/counselor/register-patient`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -973,7 +970,6 @@ const CounselorDashboard = ({ currentUser }) => {
         const fetchPatients = async () => {
             setIsLoading(true);
             try {
-                // Try to load from localStorage first for immediate display
                 const cachedPatients = localStorage.getItem(`counselor_patients_${currentUser._id}`);
                 if (cachedPatients) {
                     try {
@@ -983,15 +979,13 @@ const CounselorDashboard = ({ currentUser }) => {
                     }
                 }
 
-                // Then fetch fresh data from server
                 const token = localStorage.getItem('userToken');
-                const res = await fetch('http://localhost:5001/api/counselor/patients', {
+                const res = await fetch(`${API_BASE_URL}/api/counselor/patients`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 if (!res.ok) {
                     if (res.status === 401) {
-                        // Token expired, redirect to login
                         localStorage.clear();
                         window.location.reload();
                         return;
@@ -1001,11 +995,9 @@ const CounselorDashboard = ({ currentUser }) => {
                 
                 const data = await res.json();
                 setPatients(data);
-                // Cache the data for next time
                 localStorage.setItem(`counselor_patients_${currentUser._id}`, JSON.stringify(data));
             } catch (err) {
                 console.error('Error fetching patients:', err);
-                // If we have cached data, don't show error to user
                 if (patients.length === 0) {
                     alert('Unable to load patients. Please check your connection and try again.');
                 }
@@ -1020,7 +1012,6 @@ const CounselorDashboard = ({ currentUser }) => {
         const updatedPatients = [newPatient, ...patients];
         setPatients(updatedPatients);
         setIsRegistering(false);
-        // Update cache immediately
         localStorage.setItem(`counselor_patients_${currentUser._id}`, JSON.stringify(updatedPatients));
     };
 
@@ -1049,8 +1040,8 @@ const CounselorDashboard = ({ currentUser }) => {
                 const token = localStorage.getItem('userToken');
                 try {
                     const [historyRes, statusRes] = await Promise.all([
-                        fetch(`http://localhost:5001/api/history/${patient._id}`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                        fetch(`http://localhost:5001/api/counselor/submission-status/${patient._id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+                        fetch(`${API_BASE_URL}/api/history/${patient._id}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                        fetch(`${API_BASE_URL}/api/counselor/submission-status/${patient._id}`, { headers: { 'Authorization': `Bearer ${token}` } })
                     ]);
 
                     const historyData = await historyRes.json();
@@ -1106,7 +1097,7 @@ const CounselorDashboard = ({ currentUser }) => {
                 formData.append('patientPID', patient.pid);
                 const token = localStorage.getItem('userToken');
 
-                const uploadRes = await fetch('http://localhost:5001/api/upload-sample', {
+                const uploadRes = await fetch(`${API_BASE_URL}/api/upload-sample`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` },
                     body: formData
@@ -1145,7 +1136,7 @@ const CounselorDashboard = ({ currentUser }) => {
             setShowConsentModal(false);
             try {
                 const token = localStorage.getItem('userToken');
-                await fetch('http://localhost:5001/api/counselor/consent', {
+                await fetch(`${API_BASE_URL}/api/counselor/consent`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1175,7 +1166,7 @@ const CounselorDashboard = ({ currentUser }) => {
 
             try {
                 const token = localStorage.getItem('userToken');
-                const res = await fetch('http://localhost:5001/api/save-analysis', {
+                const res = await fetch(`${API_BASE_URL}/api/save-analysis`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1328,12 +1319,11 @@ const CounselorDashboard = ({ currentUser }) => {
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button
                                         onClick={() => {
-                                            // Refresh patients list
                                             const fetchPatients = async () => {
                                                 setIsLoading(true);
                                                 try {
                                                     const token = localStorage.getItem('userToken');
-                                                    const res = await fetch('http://localhost:5001/api/counselor/patients', {
+                                                    const res = await fetch(`${API_BASE_URL}/api/counselor/patients`, {
                                                         headers: { 'Authorization': `Bearer ${token}` }
                                                     });
                                                     const data = await res.json();
@@ -1403,7 +1393,7 @@ const GraphologistDashboard = ({ currentUser }) => {
         const fetchSamples = async () => {
             try {
                 const token = localStorage.getItem('userToken');
-                const res = await fetch('http://localhost:5001/api/graphologist/pending-samples', {
+                const res = await fetch(`${API_BASE_URL}/api/graphologist/pending-samples`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
@@ -1429,7 +1419,7 @@ const GraphologistDashboard = ({ currentUser }) => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('userToken');
-            const res = await fetch('http://localhost:5001/api/graphologist/submit-review', {
+            const res = await fetch(`${API_BASE_URL}/api/graphologist/submit-review`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1465,7 +1455,7 @@ const GraphologistDashboard = ({ currentUser }) => {
                 </div>
                 <div className="summary-card">
                     <h4>Samples Reviewed Today</h4>
-                    <p className="summary-number">0</p> {/* Placeholder */}
+                    <p className="summary-number">0</p>
                 </div>
             </div>
 
@@ -1547,7 +1537,7 @@ const ResearcherDashboard = ({ currentUser }) => {
         const fetchStats = async () => {
             try {
                 const token = localStorage.getItem('userToken');
-                const res = await fetch('http://localhost:5001/api/researcher/statistics', {
+                const res = await fetch(`${API_BASE_URL}/api/researcher/statistics`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
@@ -1562,7 +1552,7 @@ const ResearcherDashboard = ({ currentUser }) => {
     const handleExport = async () => {
         try {
             const token = localStorage.getItem('userToken');
-            const res = await fetch('http://localhost:5001/api/researcher/export', {
+            const res = await fetch(`${API_BASE_URL}/api/researcher/export`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const blob = await res.blob();
@@ -1599,10 +1589,9 @@ const ResearcherDashboard = ({ currentUser }) => {
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
                             onClick={async () => {
-                                // Debug feature data
                                 try {
                                     const token = localStorage.getItem('userToken');
-                                    const res = await fetch('http://localhost:5001/api/researcher/debug-features', {
+                                    const res = await fetch(`${API_BASE_URL}/api/researcher/debug-features`, {
                                         headers: { 'Authorization': `Bearer ${token}` }
                                     });
                                     const data = await res.json();
@@ -1619,10 +1608,9 @@ const ResearcherDashboard = ({ currentUser }) => {
                         </button>
                         <button
                             onClick={async () => {
-                                // Debug age data
                                 try {
                                     const token = localStorage.getItem('userToken');
-                                    const res = await fetch('http://localhost:5001/api/researcher/debug', {
+                                    const res = await fetch(`${API_BASE_URL}/api/researcher/debug`, {
                                         headers: { 'Authorization': `Bearer ${token}` }
                                     });
                                     const data = await res.json();
@@ -1639,11 +1627,10 @@ const ResearcherDashboard = ({ currentUser }) => {
                         </button>
                         <button
                             onClick={() => {
-                                // Refresh statistics
                                 const fetchStats = async () => {
                                     try {
                                         const token = localStorage.getItem('userToken');
-                                        const res = await fetch('http://localhost:5001/api/researcher/statistics', {
+                                        const res = await fetch(`${API_BASE_URL}/api/researcher/statistics`, {
                                             headers: { 'Authorization': `Bearer ${token}` }
                                         });
                                         const data = await res.json();
@@ -1744,7 +1731,6 @@ const PatientDashboard = ({ currentUser }) => {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                // Try to load cached data first
                 const cachedHistory = localStorage.getItem(`patient_history_${currentUser._id}`);
                 if (cachedHistory) {
                     try {
@@ -1755,7 +1741,7 @@ const PatientDashboard = ({ currentUser }) => {
                 }
 
                 const token = localStorage.getItem('userToken');
-                const res = await fetch(`http://localhost:5001/api/history/${currentUser._id}`, {
+                const res = await fetch(`${API_BASE_URL}/api/history/${currentUser._id}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
@@ -1828,7 +1814,6 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
     const [error, setError] = useState(null);
     const [localHistory, setLocalHistory] = useState(history || []);
 
-    // Function to fetch history
     const fetchHistory = async () => {
         if (!currentUser) return;
 
@@ -1836,7 +1821,6 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
         setError(null);
 
         try {
-            // Try to load cached data first for immediate display
             const cachedKey = `history_${currentUser.userType}_${currentUser._id}`;
             const cachedHistory = localStorage.getItem(cachedKey);
             if (cachedHistory) {
@@ -1854,19 +1838,18 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
             const token = localStorage.getItem('userToken');
             let endpoint = '';
 
-            // Different endpoints for different user types
             switch (currentUser.userType) {
                 case 'Patient':
-                    endpoint = `http://localhost:5001/api/history/${currentUser._id}`;
+                    endpoint = `${API_BASE_URL}/api/history/${currentUser._id}`;
                     break;
                 case 'Counselor':
-                    endpoint = `http://localhost:5001/api/counselor/all-analyses`;
+                    endpoint = `${API_BASE_URL}/api/counselor/all-analyses`;
                     break;
                 case 'Researcher':
-                    endpoint = `http://localhost:5001/api/researcher/all-analyses`;
+                    endpoint = `${API_BASE_URL}/api/researcher/all-analyses`;
                     break;
                 default:
-                    endpoint = `http://localhost:5001/api/history/${currentUser._id}`;
+                    endpoint = `${API_BASE_URL}/api/history/${currentUser._id}`;
             }
 
             const res = await fetch(endpoint, {
@@ -1875,7 +1858,6 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
 
             if (!res.ok) {
                 if (res.status === 401) {
-                    // Token expired, redirect to login
                     localStorage.clear();
                     window.location.reload();
                     return;
@@ -1885,20 +1867,14 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
 
             const data = await res.json();
             setLocalHistory(data);
-
-            // Cache the fresh data
             localStorage.setItem(cachedKey, JSON.stringify(data));
 
-            // Update parent state if setHistory is provided
             if (setHistory) {
                 setHistory(data);
             }
 
         } catch (err) {
             setError(`Error fetching history: ${err.message}`);
-            console.error('Error fetching history:', err);
-            
-            // If we have cached data, show a less severe error
             if (localHistory.length > 0) {
                 setError('Unable to fetch latest data. Showing cached results.');
             }
@@ -1907,12 +1883,10 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
         }
     };
 
-    // Fetch history when component mounts or when currentUser changes
     useEffect(() => {
         fetchHistory();
     }, [currentUser]);
 
-    // Enhanced history display with better formatting and more information
     const formatHistoryItem = (analysis) => {
         const date = new Date(analysis.date).toLocaleString();
         const outcome = analysis.combinedOutcome || analysis.imageAnalysis?.outcome || 'Unknown';
@@ -1945,7 +1919,6 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
                         )}
                     </div>
 
-                    {/* Show patient info for counselors and researchers */}
                     {(currentUser.userType === 'Counselor' || currentUser.userType === 'Researcher') && (
                         <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.875rem', color: '#6b7280' }}>
                             <strong>Patient:</strong> {
@@ -2072,7 +2045,6 @@ const HistoryPage = ({ currentUser, history, setHistory }) => {
     );
 };
 
-// Enhanced component for Graphologist History
 const GraphologistHistory = ({ currentUser }) => {
     const [reviews, setReviews] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -2083,7 +2055,7 @@ const GraphologistHistory = ({ currentUser }) => {
         setError(null);
         try {
             const token = localStorage.getItem('userToken');
-            const res = await fetch(`http://localhost:5001/api/graphologist/reviews/${currentUser._id}`, {
+            const res = await fetch(`${API_BASE_URL}/api/graphologist/reviews/${currentUser._id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to fetch reviews');
@@ -2310,7 +2282,6 @@ export default function App() {
             setPreselectedRole(null);
         }
         setPage(pageName);
-        // Save current page to localStorage for persistence across refreshes
         if (isLoggedIn) {
             localStorage.setItem('currentPage', pageName);
         }
@@ -2326,13 +2297,10 @@ export default function App() {
             const savedUser = localStorage.getItem('currentUser');
             
             if (savedToken && savedUser) {
-                // Try to restore from localStorage first for immediate display
                 try {
                     const parsedUser = JSON.parse(savedUser);
                     setCurrentUser(parsedUser);
                     setIsLoggedIn(true);
-                    
-                    // Restore the last page or default to dashboard
                     const lastPage = localStorage.getItem('currentPage') || 'dashboard';
                     handleSetPage(lastPage);
                 } catch (error) {
@@ -2340,10 +2308,9 @@ export default function App() {
                     localStorage.clear();
                 }
 
-                // Then verify with server and fetch fresh data
                 const fetchUser = async () => {
                     try {
-                        const res = await fetch('http://localhost:5001/api/get-user', {
+                        const res = await fetch(`${API_BASE_URL}/api/get-user`, {
                             headers: { 'Authorization': `Bearer ${savedToken}` }
                         });
                         if (res.ok) {
@@ -2355,9 +2322,8 @@ export default function App() {
                             setCurrentUser(userWithPID);
                             localStorage.setItem('currentUser', JSON.stringify(userWithPID));
 
-                            // Fetch history for all roles on login (but don't block UI)
                             try {
-                                const historyRes = await fetch(`http://localhost:5001/api/history/${userWithPID._id}`, {
+                                const historyRes = await fetch(`${API_BASE_URL}/api/history/${userWithPID._id}`, {
                                     headers: { 'Authorization': `Bearer ${savedToken}` }
                                 });
                                 if (historyRes.ok) {
@@ -2367,7 +2333,6 @@ export default function App() {
                                 }
                             } catch (historyError) {
                                 console.error("Failed to fetch history, using cached data", historyError);
-                                // Try to load cached history
                                 const cachedHistory = localStorage.getItem('userHistory');
                                 if (cachedHistory) {
                                     try {
@@ -2378,7 +2343,6 @@ export default function App() {
                                 }
                             }
                         } else {
-                            // Token is invalid, clear everything
                             localStorage.clear();
                             setIsLoggedIn(false);
                             setCurrentUser(null);
@@ -2386,7 +2350,6 @@ export default function App() {
                         }
                     } catch (error) {
                         console.error("Session restoration failed, using cached data", error);
-                        // Don't clear localStorage on network errors, keep using cached data
                     }
                 };
                 fetchUser();
@@ -2410,7 +2373,7 @@ export default function App() {
     const handleAcceptDisclaimer = async () => {
         try {
             const token = localStorage.getItem('userToken');
-            const res = await fetch('http://localhost:5001/api/accept-disclaimer', {
+            const res = await fetch(`${API_BASE_URL}/api/accept-disclaimer`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2455,7 +2418,6 @@ export default function App() {
                     return <HomePage setPage={handleSetPage} />;
             }
         } else {
-            // Updated logic to handle all roles for History and Profile
             switch (page) {
                 case 'profile':
                     return <ProfilePage currentUser={currentUser} setCurrentUser={setCurrentUser} />;
@@ -2492,4 +2454,3 @@ export default function App() {
         </div>
     );
 }
-
