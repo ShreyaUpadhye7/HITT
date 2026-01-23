@@ -152,7 +152,6 @@ const AnalysisResultSchema = new mongoose.Schema({
 });
 const AnalysisResult = mongoose.model('AnalysisResult', AnalysisResultSchema);
 
-// --- Nodemailer Config ---
 
 
 // --- Helpers ---
