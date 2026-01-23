@@ -20,7 +20,7 @@ app.set('trust proxy', 1);
 app.use(cors({
     origin: [
         'http://localhost:5173',
-         process.env.FRONTEND_URL
+        'https://hitt-eight.vercel.app'
     ],
     credentials: true
 }));
