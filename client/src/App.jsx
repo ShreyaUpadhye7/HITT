@@ -6,7 +6,7 @@ import CameraCapture from './CameraCapture.jsx';
 
 // Dynamic API Base URL
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://hitt-1s3l.onrender.com';
+  import.meta.env.VITE_API_URL || 'https://hitt-1-i3s1.onrender.com';
 
 
 // --- Data for the Questionnaire ---
