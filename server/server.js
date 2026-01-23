@@ -7,7 +7,6 @@ const mongoose = require('mongoose');
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const bcrypt = require('bcryptjs');
-const cors = require('cors');
 const crypto = require('crypto');
 const multer = require('multer');
 const { Parser } = require('json2csv');
@@ -24,10 +23,12 @@ const allowedOrigins = [
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
 
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -37,13 +38,18 @@ app.use((req, res, next) => {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
   );
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Authorization, Content-Type'
+  );
 
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
+    return res.status(204).end();
   }
 
   next();
 });
+
 
 
 app.use(express.json());
