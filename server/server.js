@@ -4,7 +4,8 @@ const FormData = require('form-data');
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -15,7 +16,15 @@ const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(cors({
+    origin: [
+        'http://localhost:5173',
+         process.env.FRONTEND_URL
+    ],
+    credentials: true
+}));
+
 app.use(express.json());
 
 // Serve static files from the uploads directory
@@ -144,13 +153,7 @@ const AnalysisResultSchema = new mongoose.Schema({
 const AnalysisResult = mongoose.model('AnalysisResult', AnalysisResultSchema);
 
 // --- Nodemailer Config ---
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
+
 
 // --- Helpers ---
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
@@ -158,37 +161,47 @@ const generateResetToken = () => crypto.randomBytes(32).toString('hex');
 
 async function sendOTPEmail(email, otp) {
     const subject = 'Handwriting App - Email Verification Code';
-    const message = `Your verification code is: ${otp}. This code is valid for 5 minutes.`;
+
     try {
-        await transporter.sendMail({
-            from: `"Handwriting App" <${process.env.EMAIL_USER}>`,
+        await sgMail.send({
             to: email,
-            subject,
-            html: `<h2>${subject}</h2><p>${message}</p>`
+            from: process.env.ADMIN_EMAIL, // must be verified in SendGrid
+            subject: subject,
+            html: `
+                <h2>Email Verification</h2>
+                <p>Your verification code is:</p>
+                <h1>${otp}</h1>
+                <p>This code is valid for <b>5 minutes</b>.</p>
+            `,
         });
     } catch (error) {
-        console.error('Nodemailer send error:', error);
-        throw new Error('Failed to send OTP email: ' + error.message);
+        console.error('SendGrid OTP error:', error.response?.body || error.message);
+        throw new Error('Failed to send OTP email');
     }
 }
 
 async function sendResetPasswordEmail(email, token) {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
-    const subject = 'Handwriting App - Password Reset Request';
-    const message = `You requested a password reset. Click the link below to reset your password. This link is valid for 1 hour:\n\n<a href="${resetUrl}">${resetUrl}</a>`;
+
     try {
-        await transporter.sendMail({
-            from: `"Handwriting App" <${process.env.EMAIL_USER}>`,
+        await sgMail.send({
             to: email,
-            subject,
-            html: `<h2>${subject}</h2><p>${message}</p>`
+            from: process.env.ADMIN_EMAIL,
+            subject: 'Handwriting App - Password Reset',
+            html: `
+                <h2>Password Reset</h2>
+                <p>Click the link below to reset your password:</p>
+                <a href="${resetUrl}">${resetUrl}</a>
+                <p>This link is valid for 1 hour.</p>
+            `,
         });
     } catch (error) {
-        console.error('Nodemailer send error:', error);
-        throw new Error('Failed to send reset password email: ' + error.message);
+        console.error('SendGrid reset email error:', error.response?.body || error.message);
+        throw new Error('Failed to send reset email');
     }
 }
+
 
 // --- Rate Limiting Middleware ---
 async function checkOTPRequests(email) {
@@ -554,9 +567,19 @@ app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), u
 
         let aiResponse;
         try {
-            const response = await axios.post('http://127.0.0.1:5000/analyze', form, {
-                headers: { ...form.getHeaders() }
-            });
+           const AI_SERVER_URL = process.env.AI_SERVER_URL;
+
+if (!AI_SERVER_URL) {
+    fs.unlinkSync(req.file.path);
+    return res.status(503).json({
+        message: 'AI service URL not configured'
+    });
+}
+
+
+const response = await axios.post(`${AI_SERVER_URL}/analyze`, form, {
+    headers: { ...form.getHeaders() }
+});
             aiResponse = response.data;
 
             if (aiResponse.error) {
