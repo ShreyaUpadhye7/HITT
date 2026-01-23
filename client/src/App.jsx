@@ -4,8 +4,10 @@ import './App.css';
 import ComparativeAnalysis from './ComparativeAnalysis.jsx';
 import CameraCapture from './CameraCapture.jsx';
 
-// Dynamic API Base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Dynamic API Base URL
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'https://hitt-1s3l.onrender.com';
+
 
 // --- Data for the Questionnaire ---
 const questions = [
