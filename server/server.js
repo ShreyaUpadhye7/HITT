@@ -543,10 +543,10 @@ app.post('/api/update-profile', authenticateToken, async (req, res) => {
 
 // UPLOAD HANDWRITING SAMPLE - NOW FOR COUNSELOR
 const DAYS_BETWEEN_UPLOADS = 20;
-app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), upload.single('file'), async (req, res) => {
+app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), upload.any(), async (req, res) => {
     try {
         const { patientId, patientPID } = req.body;
-        if (!req.file || !patientId || !patientPID) {
+        if (!req.files || req.files.length === 0 || !patientId || !patientPID) {
             return res.status(400).json({ message: 'Image, patientId, and patientPID are required.' });
         }
 
@@ -565,7 +565,9 @@ app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), u
         }
 
         const form = new FormData();
-form.append('file', req.file.buffer, {
+const uploadedFile = req.files[0];
+
+form.append('file', uploadedFile.buffer, {
     filename: req.file.originalname,
     contentType: req.file.mimetype
 });
