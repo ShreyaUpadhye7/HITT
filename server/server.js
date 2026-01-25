@@ -564,12 +564,17 @@ app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), u
 }
         }
 
-        const form = new FormData();
+
 const uploadedFile = req.files[0];
 
+if (!uploadedFile) {
+    return res.status(400).json({ message: 'No file received from client' });
+}
+
+const form = new FormData();
 form.append('file', uploadedFile.buffer, {
-    filename: req.file.originalname,
-    contentType: req.file.mimetype
+    filename: uploadedFile.originalname || 'upload.png',
+    contentType: uploadedFile.mimetype || 'image/png'
 });
 
         let aiResponse;
