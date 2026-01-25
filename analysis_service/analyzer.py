@@ -1,4 +1,6 @@
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import json
 import numpy as np
 import dotenv
@@ -9,6 +11,8 @@ from PIL import Image
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import cv2
+import tempfile
+
 
 # Loads the OCR_SPACE_API_KEY from your .env file
 dotenv.load_dotenv()
@@ -268,19 +272,21 @@ class HandwritingAnalyzer:
 # --- Initialize the Analyzer and set up the Flask route ---
 analyzer = HandwritingAnalyzer(MODELS_PATH)
 
+
+# Save the file temporarily (Render-safe)
 @app.route('/analyze', methods=['POST'])
 def analyze_endpoint():
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
-    # Save the file temporarily
-    file_path = os.path.join("temp", file.filename)
-    if not os.path.exists("temp"):
-        os.makedirs("temp")
-    file.save(file_path)
+    # Save the file temporarily (Render-safe)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+        file.save(tmp.name)
+        file_path = tmp.name
 
     try:
         result = analyzer.analyze(file_path)
@@ -292,4 +298,4 @@ def analyze_endpoint():
 # --- The server run command ---
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5001))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port)

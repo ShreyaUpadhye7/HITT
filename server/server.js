@@ -10,8 +10,6 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const multer = require('multer');
 const { Parser } = require('json2csv');
-const path = require('path');
-const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
@@ -23,12 +21,10 @@ const allowedOrigins = [
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
 
-  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -38,52 +34,33 @@ app.use((req, res, next) => {
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
   );
-  res.setHeader(
-    'Access-Control-Expose-Headers',
-    'Authorization, Content-Type'
-  );
 
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    return res.sendStatus(204);
   }
 
   next();
 });
 
 
-
 app.use(express.json());
 
-// Serve static files from the uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// Configure multer for file uploads to disk
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadPath = path.join(__dirname, 'public/uploads');
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
-        }
-        cb(null, uploadPath);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, `${uniqueSuffix}-${file.originalname}`);
-    }
-});
+// Configure multer for in-memory uploads (RENDER SAFE)
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png/;
-        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const extname = filetypes.test(file.originalname.toLowerCase());
         const mimetype = filetypes.test(file.mimetype);
         if (extname && mimetype) {
             return cb(null, true);
         }
         cb(new Error('Only JPEG and PNG images are allowed.'));
     },
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
+
 
 // --- Database Connection ---
 mongoose.connect(process.env.MONGO_URI)
@@ -578,34 +555,40 @@ app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), u
             const timeDifference = new Date() - new Date(lastSample.date);
             const daysDifference = timeDifference / (1000 * 60 * 60 * 24);
             if (daysDifference < DAYS_BETWEEN_UPLOADS) {
-                fs.unlinkSync(req.file.path);
-                const nextSubmissionDate = new Date(lastSample.date);
-                nextSubmissionDate.setDate(nextSubmissionDate.getDate() + DAYS_BETWEEN_UPLOADS);
-                return res.status(403).json({
-                    message: `The patient must wait 20 days between uploads. Their next submission is available on ${nextSubmissionDate.toLocaleDateString()}.`,
-                    lastSubmissionDate: lastSample.date.toISOString()
-                });
-            }
+    const nextSubmissionDate = new Date(lastSample.date);
+    nextSubmissionDate.setDate(nextSubmissionDate.getDate() + DAYS_BETWEEN_UPLOADS);
+    return res.status(403).json({
+        message: `The patient must wait 20 days between uploads. Their next submission is available on ${nextSubmissionDate.toLocaleDateString()}.`,
+        lastSubmissionDate: lastSample.date.toISOString()
+    });
+}
         }
 
         const form = new FormData();
-        form.append('file', fs.createReadStream(req.file.path));
+form.append('file', req.file.buffer, {
+    filename: req.file.originalname,
+    contentType: req.file.mimetype
+});
 
         let aiResponse;
         try {
            const AI_SERVER_URL = process.env.AI_SERVER_URL;
 
 if (!AI_SERVER_URL) {
-    fs.unlinkSync(req.file.path);
     return res.status(503).json({
         message: 'AI service URL not configured'
     });
 }
 
 
-const response = await axios.post(`${AI_SERVER_URL}/analyze`, form, {
-    headers: { ...form.getHeaders() }
-});
+const response = await axios.post(
+    `${AI_SERVER_URL}/analyze`,
+    form,
+    {
+        headers: { ...form.getHeaders() },
+        timeout: 60000 // 60 seconds (VERY IMPORTANT)
+    }
+);
             aiResponse = response.data;
 
             if (aiResponse.error) {
@@ -614,12 +597,13 @@ const response = await axios.post(`${AI_SERVER_URL}/analyze`, form, {
             }
 
         } catch (aiError) {
-            console.error('AI Server Communication Error:', aiError.message);
-            fs.unlinkSync(req.file.path);
-            return res.status(500).json({ message: `Failed to analyze image. Reason: ${aiError.message}` });
-        }
+    console.error('AI Server Communication Error:', aiError.message);
+    return res.status(500).json({
+        message: `Failed to analyze image. Reason: ${aiError.message}`
+    });
+}
 
-        const imageUrl = `${process.env.BACKEND_URL || 'http://localhost:5001'}/uploads/${req.file.filename}`;
+        const imageUrl = 'memory-upload';
 
         const aiPrediction = aiResponse.prediction;
         const totalScore = (aiResponse.scores?.relapse || 0) + (aiResponse.scores?.recovery || 0);
@@ -647,9 +631,7 @@ const response = await axios.post(`${AI_SERVER_URL}/analyze`, form, {
         });
     } catch (error) {
         console.error('Upload Sample Error:', error);
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
+    
         res.status(500).json({ message: error.message || 'Server error during sample upload.' });
     }
 });

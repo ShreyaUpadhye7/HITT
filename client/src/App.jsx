@@ -1094,7 +1094,7 @@ const CounselorDashboard = ({ currentUser }) => {
 
             try {
                 const formData = new FormData();
-                formData.append('image', file);
+                formData.append('file', file);
                 formData.append('patientId', patient._id);
                 formData.append('patientPID', patient.pid);
                 const token = localStorage.getItem('userToken');
@@ -1488,15 +1488,26 @@ const GraphologistDashboard = ({ currentUser }) => {
                         <div className="image-and-form-container">
                             <div className="sample-image-container">
                                 <h4>Handwriting Sample</h4>
-                                <img
-                                    src={selectedSample.imageUrl}
-                                    alt="Handwriting Sample"
-                                    className="sample-image"
-                                    onError={(e) => {
-                                        console.error('Image failed to load:', selectedSample.imageUrl);
-                                        e.target.src = 'https://via.placeholder.com/300x200?text=Image+Not+Found';
-                                    }}
-                                />
+                                {selectedSample.imageUrl === 'memory-upload' ? (
+    <div style={{
+        width: '300px',
+        height: '200px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f3f4f6',
+        border: '1px dashed #9ca3af',
+        color: '#374151'
+    }}>
+        Image not stored (memory upload)
+    </div>
+) : (
+    <img
+        src={selectedSample.imageUrl}
+        alt="Handwriting Sample"
+        className="sample-image"
+    />
+)}
                             </div>
                             <form onSubmit={handleReviewSubmit} className="review-form">
                                 <div className="form-group">
