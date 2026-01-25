@@ -14,33 +14,15 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 app.set('trust proxy', 1);
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://hitt-eight.vercel.app'
-];
+const cors = require('cors');
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-  );
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://hitt-eight.vercel.app'
+  ],
+  credentials: true
+}));
 
 
 app.use(express.json());
