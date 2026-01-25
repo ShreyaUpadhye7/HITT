@@ -543,7 +543,7 @@ app.post('/api/update-profile', authenticateToken, async (req, res) => {
 
 // UPLOAD HANDWRITING SAMPLE - NOW FOR COUNSELOR
 const DAYS_BETWEEN_UPLOADS = 20;
-app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), upload.single('image'), async (req, res) => {
+app.post('/api/upload-sample', authenticateToken, authorizeRoles('Counselor'), upload.single('file'), async (req, res) => {
     try {
         const { patientId, patientPID } = req.body;
         if (!req.file || !patientId || !patientPID) {
