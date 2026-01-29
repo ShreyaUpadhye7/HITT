@@ -8,22 +8,11 @@ import requests
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 from PIL import Image
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import cv2
 import tempfile
 
-
 # Loads the OCR_SPACE_API_KEY from your .env file
 dotenv.load_dotenv()
-
-# --- Initialize Flask App ---
-app = Flask(__name__)
-CORS(app)
-
-# The path to your models and JSON files
-# IMPORTANT: Update this path to where your models folder is located
-MODELS_PATH = os.path.join(os.path.dirname(__file__), 'models') 
 
 class HandwritingAnalyzer:
     def __init__(self, models_path):
@@ -268,34 +257,3 @@ class HandwritingAnalyzer:
         except Exception as e:
             print(f"An error occurred during analysis: {e}")
             return {"error": f"An internal error occurred: {e}"}
-
-# --- Initialize the Analyzer and set up the Flask route ---
-analyzer = HandwritingAnalyzer(MODELS_PATH)
-
-
-# Save the file temporarily (Render-safe)
-@app.route('/analyze', methods=['POST'])
-def analyze_endpoint():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-
-    # Save the file temporarily (Render-safe)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-        file.save(tmp.name)
-        file_path = tmp.name
-
-    try:
-        result = analyzer.analyze(file_path)
-        return jsonify(result)
-    finally:
-        # Clean up the temporary file
-        os.remove(file_path)
-
-# --- The server run command ---
-if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5001))
-    app.run(host='0.0.0.0', port=port)
