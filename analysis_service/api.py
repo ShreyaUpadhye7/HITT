@@ -3,51 +3,105 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
-import gc
+import requests
 
-# Initialize Flask app FIRST
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Basic configuration
-UPLOAD_FOLDER = 'temp_uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Global variables for analyzer
-handwriting_analyzer = None
-analyzer_error = None
-MODELS_PATH = os.path.join(os.path.dirname(__file__), 'models')
+# Service URLs (will be updated with deployed URLs)
+LETTER_SERVICE_URL = os.environ.get("LETTER_SERVICE_URL", "http://localhost:5001")
+SPACING_SERVICE_URL = os.environ.get("SPACING_SERVICE_URL", "http://localhost:5002")
 
 @app.route('/')
 def home():
-    status = {
-        "message": "HITT Handwriting Analyzer API is running!",
-        "analyzer_status": "initialized" if handwriting_analyzer else "failed",
-        "models_path": MODELS_PATH,
-        "models_exist": os.path.exists(MODELS_PATH),
-        "port": os.environ.get("PORT", "5000"),
-        "memory_optimized": True
+    return jsonify({
+        "message": "HITT Handwriting Analyzer Coordinator API is running!",
+        "services": {
+            "letter_analysis": LETTER_SERVICE_URL,
+            "spacing_analysis": SPACING_SERVICE_URL
+        },
+        "method": "distributed_analysis"
+    })
+
+def calculate_final_result(letter_predictions, spacing_predictions):
+    """Combine predictions from both services using your original scoring logic"""
+    
+    # Combine all predictions
+    all_predictions = {**letter_predictions, **spacing_predictions}
+    
+    relapse_score = 0
+    recovery_score = 0
+    
+    # Your original scoring logic
+    # Pressure (balanced) - Recovery weighted 2x
+    if all_predictions.get('pressure') in ['light', 'heavy']: 
+        relapse_score += 1
+    elif all_predictions.get('pressure') == 'medium': 
+        recovery_score += 2
+    
+    # Spacing (balanced) - Recovery weighted 2x
+    if all_predictions.get('spacing') in ['uneven', 'very uneven']: 
+        relapse_score += 1
+    elif all_predictions.get('spacing') in ['even', 'very even']: 
+        recovery_score += 2
+    
+    # G-Loop (balanced) - Recovery weighted 2x
+    if all_predictions.get('g_loop') == 'absent': 
+        relapse_score += 1
+    elif all_predictions.get('g_loop') == 'balanced': 
+        recovery_score += 2
+    
+    # Y-Loop (balanced) - Recovery weighted 2x
+    if all_predictions.get('y_loop') == 'absent': 
+        relapse_score += 1
+    elif all_predictions.get('y_loop') == 'balanced': 
+        recovery_score += 2
+    
+    # D-Height (balanced) - Recovery weighted 2x
+    if all_predictions.get('d_height') == 'tall': 
+        relapse_score += 1
+    elif all_predictions.get('d_height') == 'normal': 
+        recovery_score += 2
+    
+    # T-Height (balanced) - Recovery weighted 2x
+    if all_predictions.get('t_height') == 'tall': 
+        relapse_score += 1
+    elif all_predictions.get('t_height') == 'normal': 
+        recovery_score += 2
+    
+    # D-Loop (balanced) - Recovery weighted 2x
+    if all_predictions.get('d_loop') == 'wide_loop': 
+        relapse_score += 1
+    elif all_predictions.get('d_loop') == 'normal_loop': 
+        recovery_score += 2
+    
+    # T-Lean (balanced) - Recovery weighted 2x
+    if all_predictions.get('t_lean') == 'left_lean': 
+        relapse_score += 1
+    elif all_predictions.get('t_lean') == 'normal_lean': 
+        recovery_score += 2
+    
+    # T-Bar (balanced) - Recovery weighted 2x
+    if all_predictions.get('t_bar') == 'heavy_bar': 
+        recovery_score += 2
+    elif all_predictions.get('t_bar') == 'normal_bar': 
+        relapse_score += 1
+    
+    # Final prediction - Recovery wins on tie
+    if relapse_score > recovery_score: 
+        final_prediction = "Relapse Risk"
+    else:  # Recovery wins on tie or when ahead
+        final_prediction = "Recovery"
+    
+    print(f"🧮 Final Scoring - Recovery: {recovery_score}, Relapse: {relapse_score}, Prediction: {final_prediction}")
+    
+    return {
+        "prediction": final_prediction, 
+        "scores": {"relapse": relapse_score, "recovery": recovery_score}, 
+        "features": all_predictions,
+        "method": "distributed_cnn_analysis"
     }
-    if analyzer_error:
-        status["error"] = analyzer_error
-    if os.path.exists(MODELS_PATH):
-        try:
-            files = os.listdir(MODELS_PATH)
-            status["model_files"] = files
-            # Calculate approximate model sizes
-            total_size = 0
-            for file in files:
-                if file.endswith('.keras'):
-                    try:
-                        size = os.path.getsize(os.path.join(MODELS_PATH, file))
-                        total_size += size
-                    except:
-                        pass
-            status["total_model_size_mb"] = round(total_size / (1024*1024), 2)
-        except Exception as e:
-            status["model_files_error"] = str(e)
-    return jsonify(status)
 
 @app.route('/analyze', methods=['POST'])
 def analyze_image():
@@ -59,145 +113,74 @@ def analyze_image():
         return jsonify({"error": "Empty filename"}), 400
 
     try:
-        # Save file temporarily using tempfile (Render-safe)
+        # Save file temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
             file.save(tmp.name)
             filepath = tmp.name
 
-        # Try to load models on-demand (memory efficient)
-        result = analyze_with_lazy_loading(filepath)
+        print("🚀 Starting distributed analysis...")
+        
+        # Call Letter Analysis Service
+        letter_result = None
+        try:
+            with open(filepath, 'rb') as f:
+                files = {'file': f}
+                response = requests.post(f"{LETTER_SERVICE_URL}/analyze-letters", files=files, timeout=30)
+                if response.status_code == 200:
+                    letter_result = response.json()
+                    print("✅ Letter analysis completed")
+                else:
+                    print(f"❌ Letter service error: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Letter service failed: {e}")
+
+        # Call Spacing Analysis Service  
+        spacing_result = None
+        try:
+            with open(filepath, 'rb') as f:
+                files = {'file': f}
+                response = requests.post(f"{SPACING_SERVICE_URL}/analyze-spacing", files=files, timeout=30)
+                if response.status_code == 200:
+                    spacing_result = response.json()
+                    print("✅ Spacing analysis completed")
+                else:
+                    print(f"❌ Spacing service error: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Spacing service failed: {e}")
 
         # Clean up temp file
         os.remove(filepath)
 
-        return jsonify(result)
+        # Combine results
+        if letter_result and letter_result.get('success') and spacing_result and spacing_result.get('success'):
+            # Both services succeeded - use real CNN analysis
+            final_result = calculate_final_result(
+                letter_result.get('predictions', {}),
+                spacing_result.get('predictions', {})
+            )
+            final_result["real_models_used"] = True
+            final_result["note"] = "Analysis completed using your distributed CNN models"
+            return jsonify(final_result)
+        
+        else:
+            # One or both services failed - return error with details
+            return jsonify({
+                "error": "Distributed analysis failed",
+                "letter_service": "success" if letter_result and letter_result.get('success') else "failed",
+                "spacing_service": "success" if spacing_result and spacing_result.get('success') else "failed",
+                "letter_error": letter_result.get('error') if letter_result else "No response",
+                "spacing_error": spacing_result.get('error') if spacing_result else "No response"
+            }), 500
 
     except Exception as e:
         if 'filepath' in locals() and os.path.exists(filepath):
             os.remove(filepath)
-        print(f"❌ Error during analysis: {e}")
-        
-        # Return intelligent fallback based on image analysis
-        return jsonify({
-            "prediction": "Recovery",
-            "confidence": 72.3,
-            "scores": {"recovery": 2.8, "relapse": 1.2},
-            "features": {
-                "pressure": "medium",
-                "spacing": "even", 
-                "g_loop": "balanced",
-                "y_loop": "balanced",
-                "d_height": "normal",
-                "t_height": "normal"
-            },
-            "note": f"Lightweight analysis used due to memory constraints: {str(e)}",
-            "fallback_used": True
-        }), 200
-
-def analyze_with_lazy_loading(image_path):
-    """Try to analyze with real models, but use memory-efficient loading"""
-    try:
-        # Try to import and use real analyzer
-        print("🧠 Attempting memory-efficient model loading...")
-        
-        # Set memory growth for TensorFlow
-        import os
-        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        
-        from analyzer import HandwritingAnalyzer
-        
-        # Create analyzer with memory optimization
-        analyzer = HandwritingAnalyzer(MODELS_PATH)
-        result = analyzer.analyze(image_path)
-        
-        # Add success indicator
-        result["real_models_used"] = True
-        result["note"] = "Analysis completed using your trained CNN models"
-        
-        # Clean up memory
-        del analyzer
-        gc.collect()
-        
-        return result
-        
-    except Exception as e:
-        print(f"❌ Real model loading failed: {e}")
-        
-        # Intelligent fallback - analyze image properties
-        return analyze_image_properties(image_path)
-
-def analyze_image_properties(image_path):
-    """Lightweight image analysis without heavy ML models"""
-    try:
-        from PIL import Image
-        import numpy as np
-        
-        # Basic image analysis
-        with Image.open(image_path) as img:
-            # Convert to grayscale
-            gray_img = img.convert('L')
-            np_img = np.array(gray_img)
-            
-            # Calculate basic features
-            avg_intensity = np.mean(np_img)
-            std_intensity = np.std(np_img)
-            
-            # Simple heuristics based on image properties
-            if avg_intensity < 100:  # Darker writing
-                pressure = "heavy"
-                recovery_boost = 0.1
-            elif avg_intensity > 180:  # Lighter writing
-                pressure = "light"
-                recovery_boost = -0.1
-            else:
-                pressure = "medium"
-                recovery_boost = 0.2
-            
-            # Calculate scores based on image properties
-            base_recovery = 2.5 + recovery_boost
-            base_relapse = 4.0 - base_recovery
-            
-            # Determine prediction
-            if base_recovery > base_relapse:
-                prediction = "Recovery"
-                confidence = min(85, 60 + (base_recovery - base_relapse) * 10)
-            else:
-                prediction = "Relapse Risk"
-                confidence = min(85, 60 + (base_relapse - base_recovery) * 10)
-            
-            return {
-                "prediction": prediction,
-                "confidence": round(confidence, 1),
-                "scores": {
-                    "recovery": round(base_recovery, 1),
-                    "relapse": round(base_relapse, 1)
-                },
-                "features": {
-                    "pressure": pressure,
-                    "spacing": "even",
-                    "avg_intensity": round(avg_intensity, 1),
-                    "std_intensity": round(std_intensity, 1)
-                },
-                "note": "Lightweight image-based analysis (models too large for current memory)",
-                "method": "image_properties"
-            }
-            
-    except Exception as e:
-        print(f"❌ Even lightweight analysis failed: {e}")
-        return {
-            "prediction": "Recovery",
-            "confidence": 68.5,
-            "scores": {"recovery": 2.7, "relapse": 1.3},
-            "features": {"pressure": "medium", "spacing": "even"},
-            "note": f"Basic fallback used: {str(e)}",
-            "method": "fallback"
-        }
+        print(f"❌ Coordinator error: {e}")
+        return jsonify({"error": f"Coordinator failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    # Start Flask app immediately - don't preload models
     port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 Starting memory-optimized Flask app on port {port}")
-    print("📝 Models will be loaded on-demand to save memory")
-    
+    print(f"🚀 Starting Handwriting Analysis Coordinator on port {port}")
+    print(f"📡 Letter Service: {LETTER_SERVICE_URL}")
+    print(f"📡 Spacing Service: {SPACING_SERVICE_URL}")
     app.run(host='0.0.0.0', port=port, debug=False)
