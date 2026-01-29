@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: hitt-analysis-service
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirement.txt
+    startCommand: python api.py
+    envVars:
+      - key: OCR_SPACE_API_KEY
+        value: K86065005788957
+      - key: PORT
+        value: 5000

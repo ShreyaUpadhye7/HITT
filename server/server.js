@@ -19,9 +19,13 @@ const cors = require('cors');
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://hitt-eight.vercel.app'
+    'https://hitt-eight.vercel.app',
+    'https://hitt-6qc9k5k2y-shreyavu28-gmailcoms-projects.vercel.app',
+    'https://your-frontend-domain.vercel.app'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 
