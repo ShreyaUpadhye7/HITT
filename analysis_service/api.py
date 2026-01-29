@@ -38,16 +38,20 @@ def home():
 
 @app.route('/analyze', methods=['POST'])
 def analyze_image():
+    # Force model loading attempt if not already loaded
+    if handwriting_analyzer is None:
+        print("🔄 Attempting to load models on-demand...")
+        load_analyzer()
+    
     if handwriting_analyzer is None:
         return jsonify({
-            "error": "Analyzer initialization failed.", 
+            "error": "REAL MODELS FAILED TO LOAD", 
             "details": analyzer_error or "Models not loaded",
-            "fallback_used": True,
-            "prediction": "Recovery",
-            "confidence": 65.0,
-            "scores": {"recovery": 2.5, "relapse": 1.5},
-            "features": {"pressure": "medium", "spacing": "even", "note": "Using fallback - models not loaded"}
-        }), 200  # Return 200 so the frontend doesn't show error
+            "models_path": MODELS_PATH,
+            "models_exist": os.path.exists(MODELS_PATH),
+            "model_files": os.listdir(MODELS_PATH) if os.path.exists(MODELS_PATH) else [],
+            "note": "This is a FALLBACK response - your trained models are not working"
+        }), 500  # Return error so you know models failed
 
     if 'file' not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -62,8 +66,13 @@ def analyze_image():
             file.save(tmp.name)
             filepath = tmp.name
 
-        # Run analysis
+        print(f"🧠 Using REAL AI models to analyze: {filepath}")
+        # Run analysis with your trained models
         result = handwriting_analyzer.analyze(filepath)
+        
+        # Add confirmation that real models were used
+        result["real_models_used"] = True
+        result["note"] = "Analysis completed using your trained CNN models"
 
         # Clean up temp file
         os.remove(filepath)
@@ -73,49 +82,75 @@ def analyze_image():
     except Exception as e:
         if 'filepath' in locals() and os.path.exists(filepath):
             os.remove(filepath)
-        print(f"Error during analysis: {e}")
+        print(f"❌ Error during REAL analysis: {e}")
         
-        # Return fallback result instead of error
+        # Return error instead of fallback
         return jsonify({
-            "prediction": "Recovery",
-            "confidence": 60.0,
-            "scores": {"recovery": 2.0, "relapse": 2.0},
-            "features": {"pressure": "medium", "spacing": "even", "error": str(e)},
-            "fallback_used": True,
-            "note": "Analysis failed, using fallback result"
-        }), 200
+            "error": f"Real model analysis failed: {str(e)}",
+            "note": "Your trained models exist but analysis failed"
+        }), 500
 
 # Try to load analyzer after Flask app is created
 def load_analyzer():
     global handwriting_analyzer, analyzer_error
     
-    print("Initializing the handwriting analyzer...")
-    print(f"Looking for models in: {MODELS_PATH}")
+    print("🚀 ATTEMPTING TO LOAD YOUR TRAINED CNN MODELS...")
+    print(f"Models path: {MODELS_PATH}")
     print(f"Models directory exists: {os.path.exists(MODELS_PATH)}")
     
-    if os.path.exists(MODELS_PATH):
-        try:
-            files = os.listdir(MODELS_PATH)
-            print(f"Files in models directory: {files}")
-        except Exception as e:
-            print(f"Error listing model files: {e}")
+    if not os.path.exists(MODELS_PATH):
+        analyzer_error = f"Models directory not found: {MODELS_PATH}"
+        print(f"❌ {analyzer_error}")
+        return
     
     try:
-        # Import analyzer here to avoid blocking startup
-        from analyzer import HandwritingAnalyzer
-        print("HandwritingAnalyzer imported successfully")
+        files = os.listdir(MODELS_PATH)
+        print(f"📁 Files in models directory: {files}")
         
+        # Check for required files
+        required_files = [
+            'Copy of best_dheight_model.keras',
+            'Copy of best_dloop_model.keras', 
+            'Copy of best_gloop_model.keras',
+            'Copy of best_t_mirrored_model.keras',
+            'Copy of best_tloop_model.keras',
+            'Copy of best_ttall_model.keras',
+            'Copy of best_yloop_model.keras',
+            'Copy of pressure_model.json',
+            'Copy of spacing_model.json'
+        ]
+        
+        missing_files = [f for f in required_files if f not in files]
+        if missing_files:
+            analyzer_error = f"Missing model files: {missing_files}"
+            print(f"❌ {analyzer_error}")
+            return
+            
+        print("✅ All required model files found!")
+        
+    except Exception as e:
+        analyzer_error = f"Error listing model files: {str(e)}"
+        print(f"❌ {analyzer_error}")
+        return
+    
+    try:
+        print("📦 Importing HandwritingAnalyzer...")
+        from analyzer import HandwritingAnalyzer
+        print("✅ HandwritingAnalyzer imported successfully")
+        
+        print("🧠 Loading your trained CNN models...")
         handwriting_analyzer = HandwritingAnalyzer(MODELS_PATH)
-        print("✅ Analyzer initialized successfully with real models!")
+        print("🎉 SUCCESS! Your trained CNN models are loaded and ready!")
         
     except ImportError as e:
-        analyzer_error = f"Import error: {str(e)}"
-        print(f"❌ Import error: {e}")
+        analyzer_error = f"Import error - analyzer.py issue: {str(e)}"
+        print(f"❌ Import failed: {analyzer_error}")
         handwriting_analyzer = None
         
     except Exception as e:
-        analyzer_error = str(e)
-        print(f"❌ Model loading error: {e}")
+        analyzer_error = f"Model loading failed: {str(e)}"
+        print(f"❌ Model loading error: {analyzer_error}")
+        print(f"❌ Full error details: {repr(e)}")
         handwriting_analyzer = None
 
 if __name__ == '__main__':
