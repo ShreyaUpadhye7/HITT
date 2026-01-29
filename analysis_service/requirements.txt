@@ -1,0 +1,8 @@
+tensorflow
+numpy
+Flask
+Flask-Cors
+Pillow
+python-dotenv
+requests
+opencv-python-headless

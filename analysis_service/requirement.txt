@@ -1,6 +1,0 @@
-tensorflow
-numpy
-Flask
-Flask-Cors
-Pillow
-python-dotenv

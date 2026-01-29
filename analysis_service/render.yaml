@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirement.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: python api.py
     envVars:
       - key: OCR_SPACE_API_KEY
