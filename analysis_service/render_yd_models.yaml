@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: hitt-yd-models
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python service_yd_models.py
+    envVars:
+      - key: OCR_SPACE_API_KEY
+        value: K86065005788957
+      - key: PORT
+        value: 5000
