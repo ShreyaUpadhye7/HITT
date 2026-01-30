@@ -299,12 +299,17 @@ def analyze_image():
 
         # 3. Y&D Models Service
         try:
+            print(f"🔄 Calling Y&D service: {YD_SERVICE_URL}")
             with open(filepath, 'rb') as f:
                 files = {'file': f}
                 response = requests.post(f"{YD_SERVICE_URL}/analyze-yd-letters", files=files, timeout=30)
+                print(f"📡 Y&D service response status: {response.status_code}")
                 if response.status_code == 200:
                     results['yd_models'] = response.json()
                     print("✅ Y&D models analysis completed")
+                else:
+                    print(f"❌ Y&D service returned status {response.status_code}: {response.text[:200]}")
+                    results['yd_models'] = None
         except Exception as e:
             print(f"❌ Y&D models service failed: {e}")
             results['yd_models'] = None
@@ -326,12 +331,45 @@ def analyze_image():
         # Check if we have enough successful results
         successful_services = sum(1 for r in results.values() if r and r.get('success'))
         
+        print(f"🔍 Service Results Summary:")
+        for service_name, result in results.items():
+            status = "✅ SUCCESS" if result and result.get('success') else "❌ FAILED"
+            print(f"   {service_name}: {status}")
+        
         if successful_services >= 2:  # Need at least 2 services working
-            # Combine results
-            pressure_preds = results['pressure'].get('predictions', {}) if results['pressure'] and results['pressure'].get('success') else {}
-            t_preds = results['t_models'].get('predictions', {}) if results['t_models'] and results['t_models'].get('success') else {}
-            yd_preds = results['yd_models'].get('predictions', {}) if results['yd_models'] and results['yd_models'].get('success') else {}
-            g_preds = results['g_loop'].get('predictions', {}) if results['g_loop'] and results['g_loop'].get('success') else {}
+            # Safely combine results with error handling
+            pressure_preds = {}
+            t_preds = {}
+            yd_preds = {}
+            g_preds = {}
+            
+            try:
+                if results.get('pressure') and results['pressure'].get('success'):
+                    pressure_preds = results['pressure'].get('predictions', {})
+                    print(f"✅ Pressure predictions: {pressure_preds}")
+            except Exception as e:
+                print(f"❌ Error processing pressure results: {e}")
+            
+            try:
+                if results.get('t_models') and results['t_models'].get('success'):
+                    t_preds = results['t_models'].get('predictions', {})
+                    print(f"✅ T-models predictions: {t_preds}")
+            except Exception as e:
+                print(f"❌ Error processing t_models results: {e}")
+            
+            try:
+                if results.get('yd_models') and results['yd_models'].get('success'):
+                    yd_preds = results['yd_models'].get('predictions', {})
+                    print(f"✅ Y&D predictions: {yd_preds}")
+            except Exception as e:
+                print(f"❌ Error processing yd_models results: {e}")
+            
+            try:
+                if results.get('g_loop') and results['g_loop'].get('success'):
+                    g_preds = results['g_loop'].get('predictions', {})
+                    print(f"✅ G-loop predictions: {g_preds}")
+            except Exception as e:
+                print(f"❌ Error processing g_loop results: {e}")
             
             final_result = calculate_final_result(pressure_preds, t_preds, yd_preds, g_preds)
             final_result["real_models_used"] = True
