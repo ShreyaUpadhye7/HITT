@@ -128,6 +128,19 @@ except Exception as e:
     pressure_analyzer = None
     analyzer_loaded = False
 
+@app.route('/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "pressure_spacing",
+        "analyzer_loaded": analyzer_loaded,
+        "models": ["pressure", "spacing"]
+    })
+
+@app.route('/ping')
+def ping():
+    return jsonify({"status": "alive", "service": "pressure_spacing"})
+
 @app.route('/')
 def home():
     return jsonify({

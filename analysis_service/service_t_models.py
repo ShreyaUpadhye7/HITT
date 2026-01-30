@@ -11,6 +11,8 @@ from tensorflow.keras.preprocessing.image import img_to_array
 from PIL import Image
 import requests
 import dotenv
+import gc
+import tensorflow as tf
 
 dotenv.load_dotenv()
 
@@ -105,6 +107,10 @@ class TLetterAnalyzer:
                 predictions['t_height'] = t_height_labels[np.argmax(pred_tall)]
                 predictions['t_bar'] = t_loop_labels[np.argmax(pred_loop)]
                 predictions['t_lean'] = t_mirrored_labels[np.argmax(pred_mirrored)]
+                
+                # Memory cleanup after predictions
+                tf.keras.backend.clear_session()
+                gc.collect()
 
             return {
                 "success": True,
@@ -123,6 +129,19 @@ except Exception as e:
     print(f"Failed to load T-letter analyzer: {e}")
     t_analyzer = None
     analyzer_loaded = False
+
+@app.route('/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "t_models",
+        "analyzer_loaded": analyzer_loaded,
+        "models": ["t_height", "t_bar", "t_lean"]
+    })
+
+@app.route('/ping')
+def ping():
+    return jsonify({"status": "alive", "service": "t_models"})
 
 @app.route('/')
 def home():

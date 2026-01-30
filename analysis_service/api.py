@@ -12,6 +12,8 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
 from PIL import Image
 import dotenv
+import gc
+import tensorflow as tf
 
 dotenv.load_dotenv()
 
@@ -100,6 +102,10 @@ class GLoopAnalyzer:
                 g_loop_labels = ['absent', 'balanced'] 
                 pred = self.gloop_model.predict(self._preprocess_image(cropped_letters['g']))[0]
                 predictions['g_loop'] = g_loop_labels[np.argmax(pred)]
+                
+                # Memory cleanup after prediction
+                tf.keras.backend.clear_session()
+                gc.collect()
 
             return {
                 "success": True,
@@ -118,6 +124,19 @@ except Exception as e:
     print(f"Failed to load G-loop analyzer: {e}")
     g_analyzer = None
     g_analyzer_loaded = False
+
+@app.route('/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "coordinator",
+        "timestamp": str(np.datetime64('now')),
+        "g_loop_analyzer": "loaded" if g_analyzer_loaded else "failed"
+    })
+
+@app.route('/ping')
+def ping():
+    return jsonify({"status": "alive", "service": "coordinator"})
 
 @app.route('/')
 def home():

@@ -255,6 +255,25 @@ const authorizeRoles = (...roles) => {
 // API ROUTES
 // =======================
 
+// HOME ROUTE - Service Status Check
+app.get('/', (req, res) => {
+    res.json({
+        message: "HITT Backend API is running!",
+        status: "live",
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            auth: ["/api/register", "/api/login", "/api/forgot-password"],
+            analysis: ["/api/upload-sample"],
+            users: ["/api/get-user", "/api/update-profile"],
+            counselor: ["/api/counselor/patients", "/api/counselor/summary"],
+            researcher: ["/api/researcher/statistics", "/api/researcher/export"],
+            graphologist: ["/api/graphologist/pending-samples"]
+        },
+        database: "MongoDB Atlas Connected",
+        ai_service: process.env.AI_SERVER_URL || "Not configured"
+    });
+});
+
 // REGISTER - send OTP
 app.post('/api/register', async (req, res) => {
     try {
@@ -572,16 +591,41 @@ if (!AI_SERVER_URL) {
     });
 }
 
-
-const response = await axios.post(
-    `${AI_SERVER_URL}/analyze`,
-    form,
-    {
-        headers: { ...form.getHeaders() },
-        timeout: 60000 // 60 seconds (VERY IMPORTANT)
+// Retry logic for AI service calls (handles cold starts)
+let lastError;
+for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+        console.log(`🚀 AI Analysis attempt ${attempt}/3...`);
+        
+        const response = await axios.post(
+            `${AI_SERVER_URL}/analyze`,
+            form,
+            {
+                headers: { ...form.getHeaders() },
+                timeout: 90000 // 90 seconds for cold starts
+            }
+        );
+        
+        aiResponse = response.data;
+        console.log(`✅ AI Analysis successful on attempt ${attempt}`);
+        break; // Success - exit retry loop
+        
+    } catch (error) {
+        lastError = error;
+        console.log(`❌ AI Analysis attempt ${attempt} failed: ${error.message}`);
+        
+        if (attempt < 3) {
+            const waitTime = attempt * 15000; // 15s, 30s
+            console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
     }
-);
-            aiResponse = response.data;
+}
+
+// If all attempts failed, throw the last error
+if (!aiResponse) {
+    throw lastError;
+}
 
             if (aiResponse.error) {
                 console.error('AI Server returned an error:', aiResponse.error);
@@ -590,8 +634,31 @@ const response = await axios.post(
 
         } catch (aiError) {
     console.error('AI Server Communication Error:', aiError.message);
-    return res.status(500).json({
-        message: `Failed to analyze image. Reason: ${aiError.message}`
+    
+    // Provide user-friendly error messages based on error type
+    let userMessage = 'Failed to analyze image.';
+    let statusCode = 500;
+    
+    if (aiError.code === 'ECONNREFUSED' || aiError.code === 'ENOTFOUND') {
+        userMessage = 'AI services are currently unavailable. Please try again in a few minutes.';
+        statusCode = 503;
+    } else if (aiError.code === 'ETIMEDOUT') {
+        userMessage = 'Analysis is taking longer than expected. AI services may be starting up. Please try again in 2-3 minutes.';
+        statusCode = 504;
+    } else if (aiError.response?.status === 502) {
+        userMessage = 'AI services are starting up. This can take 2-3 minutes on first use. Please try again shortly.';
+        statusCode = 502;
+    } else if (aiError.response?.status >= 500) {
+        userMessage = 'AI services are experiencing issues. Please try again in a few minutes.';
+        statusCode = 503;
+    }
+    
+    return res.status(statusCode).json({
+        message: userMessage,
+        technical_details: aiError.message,
+        suggestion: statusCode === 502 || statusCode === 504 ? 
+            'AI services need time to start up. Please wait 2-3 minutes and try again.' : 
+            'Please try again later or contact support if the issue persists.'
     });
 }
 

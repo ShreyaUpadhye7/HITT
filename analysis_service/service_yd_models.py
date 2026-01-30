@@ -11,6 +11,8 @@ from tensorflow.keras.preprocessing.image import img_to_array
 from PIL import Image
 import requests
 import dotenv
+import gc
+import tensorflow as tf
 
 dotenv.load_dotenv()
 
@@ -107,6 +109,10 @@ class YDLetterAnalyzer:
                 
                 predictions['d_height'] = d_height_labels[np.argmax(pred_height)]
                 predictions['d_loop'] = d_loop_labels[np.argmax(pred_loop)]
+                
+                # Memory cleanup after predictions
+                tf.keras.backend.clear_session()
+                gc.collect()
 
             return {
                 "success": True,
@@ -125,6 +131,19 @@ except Exception as e:
     print(f"Failed to load Y/D letter analyzer: {e}")
     yd_analyzer = None
     analyzer_loaded = False
+
+@app.route('/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "yd_models",
+        "analyzer_loaded": analyzer_loaded,
+        "models": ["y_loop", "d_height", "d_loop"]
+    })
+
+@app.route('/ping')
+def ping():
+    return jsonify({"status": "alive", "service": "yd_models"})
 
 @app.route('/')
 def home():
