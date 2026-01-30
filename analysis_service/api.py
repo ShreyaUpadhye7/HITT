@@ -245,6 +245,7 @@ def calculate_final_result(pressure_predictions, t_predictions, yd_predictions, 
         final_prediction = "Recovery"
     
     print(f"🧮 Final Scoring - Recovery: {recovery_score}, Relapse: {relapse_score}, Prediction: {final_prediction}")
+    print(f"🔍 All Features Used: {all_predictions}")
     
     return {
         "prediction": final_prediction, 
