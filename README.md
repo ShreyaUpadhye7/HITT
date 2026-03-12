@@ -51,7 +51,7 @@ Traditional relapse prediction methods rely on:
 
 However, these methods often fail to capture **hidden psychological intentions**.
 
-Handwriting provides a behavioral signal that reflects subconscious emotional and cognitive states, making it a useful indicator for relapse detection. :contentReference[oaicite:1]{index=1}
+Handwriting provides a behavioral signal that reflects subconscious emotional and cognitive states, making it a useful indicator for relapse detection. 
 
 ---
 
